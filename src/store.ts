@@ -1,7 +1,15 @@
 import { Store } from "mx-puppet-bridge";
 import { IStoreToken } from "soru-slack-client";
 
-const CURRENT_SCHEMA = 1;
+const CURRENT_SCHEMA = 2;
+
+type userTeamChannel = {
+	userId: string,
+	teamId: string,
+	channelId: string,
+	roomId: string
+}
+type userTeamChannels = userTeamChannel[];
 
 export class SlackStore {
 	constructor(
@@ -45,5 +53,35 @@ export class SlackStore {
 			teamId: token.teamId,
 			userId: token.userId,
 		});
+	}
+	
+	public async storeUserChannels(userTeamChannels: userTeamChannels) {
+		await this.store.db.BulkInsert(`INSERT INTO user_team_channel (
+			channel_id, team_id, user_id, room_id
+		) VALUES (
+			$channelId, $teamId, $userId, $roomId
+		)`, userTeamChannels);
+	}
+
+	public async getTeamRooms(teamId: string, userId: string) {
+		const rows = await this.store.db.All("SELECT * FROM user_team_channel WHERE team_id = $t AND user_id = $u",
+			{ t: teamId, u: userId });
+		const ret: userTeamChannel[] = [];
+		for (const row of rows) {
+			if (row) {
+				ret.push({
+					roomId: row.room_id as string,
+					userId: row.user_id as string,
+					channelId: row.channel_id as string,
+					teamId: row.team_id as string,
+				});
+			}
+		}
+		return ret;
+	}
+
+	public async deleteTeamRooms(teamId: string, userId: string) {
+		await this.store.db.Run("DELETE FROM user_team_channel WHERE team_id = $t AND user_id = $u",
+			{ t: teamId, u: userId });
 	}
 }

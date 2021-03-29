@@ -22,7 +22,8 @@ import * as Emoji from "node-emoji";
 import { SlackProvisioningAPI } from "./api";
 import { SlackStore } from "./store";
 import * as escapeHtml from "escape-html";
-import { Config } from "./index";
+import {Config, Puppet} from "./index";
+import {IRoomStoreEntry} from "mx-puppet-bridge/lib/src/db/interfaces";
 
 const log = new Log("SlackPuppet:slack");
 
@@ -830,6 +831,27 @@ export class App {
 			return null;
 		}
 		return await this.getRoomParams(room.puppetId, chan);
+	}
+
+	public async handleAfterCreateRoom(room: IRoomStoreEntry, user_mxid: string) {
+		if (!user_mxid) {
+			return;
+		}
+		log.verbose("handleAfterCreateRoom:", room);
+		log.info(`111111Received create request for channel update userId=${user_mxid} roomId=${room.roomId}`);
+		const teamIdAndChannelId = room.roomId.split('-');
+		await this.store.storeUserChannels([{channelId: teamIdAndChannelId[1], teamId: teamIdAndChannelId[0], userId: user_mxid, roomId: room.mxid}]);
+	}
+
+	public async handleAfterUnlink(userId: string, teamId: string) {
+		if (!userId || !teamId) {
+			return;
+		}
+		const items = await this.store.getTeamRooms(teamId, userId);
+		log.verbose("handleAfterUnlink items:", items);
+		for (const item of items) {
+			this.puppet.botProvisioner.kickUser(userId, item.roomId, 'Unlink').catch(err => '');
+		}
 	}
 
 	public async createUser(remoteUser: IRemoteUser): Promise<IRemoteUser | null> {
