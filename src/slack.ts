@@ -111,7 +111,7 @@ export class App {
 		if (team.partial) {
 			await team.load();
 		}
-		const roomIds: string[] = [];
+		const roomIds: string[] = []
 		let description = `<h1>${escapeHtml(team.name)}</h1>`;
 		description += `<h2>Channels:</h2><ul>`;
 		for (const [, chan] of team.channels) {
@@ -833,11 +833,11 @@ export class App {
 		return await this.getRoomParams(room.puppetId, chan);
 	}
 
-	public async handleAfterCreateRoom(room: IRoomStoreEntry, user_mxid: string) {
+	public async handleAfterLinkRoom(room: IRoomStoreEntry, user_mxid: string) {
 		if (!user_mxid) {
 			return;
 		}
-		log.verbose("handleAfterCreateRoom:", room);
+		log.verbose("handleAfterLinkRoom:", room);
 		log.info(`111111Received create request for channel update userId=${user_mxid} roomId=${room.roomId}`);
 		const teamIdAndChannelId = room.roomId.split('-');
 		await this.store.storeUserChannels([{channelId: teamIdAndChannelId[1], teamId: teamIdAndChannelId[0], userId: user_mxid, roomId: room.mxid}]);

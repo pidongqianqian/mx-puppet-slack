@@ -139,7 +139,7 @@ async function run() {
 	puppet.on("file", slack.handleMatrixFile.bind(slack));
 	puppet.on("presence", slack.handleMatrixPresence.bind(slack));
 	puppet.on("typing", slack.handleMatrixTyping.bind(slack));
-	puppet.on("afterCreateRoom", slack.handleAfterCreateRoom.bind(slack));
+	puppet.on("afterLinkRoom", slack.handleAfterLinkRoom.bind(slack));
 	puppet.on("afterUnlink", slack.handleAfterUnlink.bind(slack));
 	puppet.setCreateUserHook(slack.createUser.bind(slack));
 	puppet.setCreateRoomHook(slack.createRoom.bind(slack));
