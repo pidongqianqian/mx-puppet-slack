@@ -56,11 +56,19 @@ export class SlackStore {
 	}
 	
 	public async storeUserChannels(userTeamChannels: userTeamChannels) {
-		await this.store.db.BulkInsert(`INSERT INTO user_team_channel (
-			channel_id, team_id, user_id, room_id
-		) VALUES (
-			$channelId, $teamId, $userId, $roomId
-		)`, userTeamChannels);
+		if (this.store.db.type === "postgres") {
+			await this.store.db.BulkInsert(`INSERT INTO user_team_channel (
+				channel_id, team_id, user_id, room_id
+			) VALUES (
+				$channelId, $teamId, $userId, $roomId
+			) ON CONFLICT DO NOTHING;`, userTeamChannels);
+		} else {
+			await this.store.db.BulkInsert(`INSERT OR IGNORE INTO user_team_channel (
+				channel_id, team_id, user_id, room_id
+			) VALUES (
+				$channelId, $teamId, $userId, $roomId
+			)`, userTeamChannels);
+		}
 	}
 
 	public async getTeamRooms(teamId: string, userId: string) {

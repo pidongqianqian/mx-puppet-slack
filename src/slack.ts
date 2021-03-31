@@ -833,16 +833,15 @@ export class App {
 		return await this.getRoomParams(room.puppetId, chan);
 	}
 
-	public async handleAfterLinkRoom(room: IRoomStoreEntry, user_mxid: string) {
-		if (!user_mxid) {
+	public async handleAfterLinkRoom(room: IRoomStoreEntry, userMxid: string) {
+		if (!userMxid) {
 			return;
 		}
-		log.verbose("handleAfterLinkRoom:", room);
-		log.info(`111111Received create request for channel update userId=${user_mxid} roomId=${room.roomId}`);
+		log.info(`111111Received create request for channel update userId=${userMxid} roomId=${room.roomId}`);
 		const teamIdAndChannelId = room.roomId.split('-');
-		await this.store.storeUserChannels([{channelId: teamIdAndChannelId[1], teamId: teamIdAndChannelId[0], userId: user_mxid, roomId: room.mxid}]);
+		await this.store.storeUserChannels([{channelId: teamIdAndChannelId[1], teamId: teamIdAndChannelId[0], userId: userMxid, roomId: room.mxid}]);
 	}
-
+	
 	public async handleAfterUnlink(userId: string, teamId: string) {
 		if (!userId || !teamId) {
 			return;
@@ -854,6 +853,14 @@ export class App {
 		}
 	}
 
+	public async handleAfterCreateDM(roomId: string, userMxid: string, teamChannelId: string) {
+		if (!roomId || !userMxid || !teamChannelId) {
+			return;
+		}
+		const teamIdAndChannelId = teamChannelId.split('-');
+		await this.store.storeUserChannels([{channelId: teamIdAndChannelId[1], teamId: teamIdAndChannelId[0], userId: userMxid, roomId: roomId}]);
+	}
+	
 	public async createUser(remoteUser: IRemoteUser): Promise<IRemoteUser | null> {
 		const p = this.puppets[remoteUser.puppetId];
 		if (!p) {
