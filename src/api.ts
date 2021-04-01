@@ -1,5 +1,5 @@
 import { Response } from "express";
-import { PuppetBridge, IAuthedRequest } from "mx-puppet-bridge";
+import { PuppetBridge, IAuthedRequest } from "@pidong/mx-puppet-bridge";
 import { convertOAuthToken } from "./oauth";
 
 const CREATED = 201;

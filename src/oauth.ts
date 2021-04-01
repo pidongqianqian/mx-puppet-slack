@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { WebClient, WebAPICallResult } from "@slack/web-api";
-import { IRetData } from "mx-puppet-bridge";
+import { IRetData } from "@pidong/mx-puppet-bridge";
 import * as escapeHtml from "escape-html";
 
 import { Config } from "./index";

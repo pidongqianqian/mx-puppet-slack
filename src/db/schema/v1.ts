@@ -1,4 +1,4 @@
-import { IDbSchema, Store, Log, Util } from "mx-puppet-bridge";
+import { IDbSchema, Store, Log, Util } from "@pidong/mx-puppet-bridge";
 import { Puppet } from "../../index";
 
 const log = new Log("SlackMigration");

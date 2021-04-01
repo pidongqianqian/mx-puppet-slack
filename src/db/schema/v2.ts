@@ -1,4 +1,4 @@
-import { IDbSchema, Store } from "mx-puppet-bridge";
+import { IDbSchema, Store } from "@pidong/mx-puppet-bridge";
 
 const LEVEL_OP = 100;
 

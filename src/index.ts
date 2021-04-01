@@ -3,7 +3,7 @@ import {
 	IProtocolInformation,
 	IPuppetBridgeRegOpts,
 	Log,
-} from "mx-puppet-bridge";
+} from "@pidong/mx-puppet-bridge";
 import * as commandLineArgs from "command-line-args";
 import * as commandLineUsage from "command-line-usage";
 import { App } from "./slack";

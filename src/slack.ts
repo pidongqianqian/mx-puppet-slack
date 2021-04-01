@@ -13,7 +13,7 @@ import {
 	MessageDeduplicator,
 	ISendingUser,
 	IPresenceEvent,
-} from "mx-puppet-bridge";
+} from "@pidong/mx-puppet-bridge";
 import {
 	SlackMessageParser, ISlackMessageParserOpts, MatrixMessageParser, IMatrixMessageParserOpts,
 } from "matrix-slack-parser";
@@ -23,7 +23,7 @@ import { SlackProvisioningAPI } from "./api";
 import { SlackStore } from "./store";
 import * as escapeHtml from "escape-html";
 import {Config, Puppet} from "./index";
-import {IRoomStoreEntry} from "mx-puppet-bridge/lib/src/db/interfaces";
+import {IRoomStoreEntry} from "@pidong/mx-puppet-bridge/lib/src/db/interfaces";
 
 const log = new Log("SlackPuppet:slack");
 

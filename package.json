@@ -11,6 +11,7 @@
   },
   "author": "Sorunome",
   "dependencies": {
+    "@pidong/mx-puppet-bridge": "^0.1.4",
     "@slack/web-api": "^5.8.0",
     "command-line-args": "^5.1.1",
     "command-line-usage": "^5.0.5",
@@ -18,7 +19,6 @@
     "events": "^3.1.0",
     "js-yaml": "^3.13.1",
     "matrix-slack-parser": "^0.1.5",
-    "mx-puppet-bridge": "0.1.4",
     "node-emoji": "^1.10.0",
     "soru-slack-client": "0.1.2",
     "tslint": "^5.20.1",
