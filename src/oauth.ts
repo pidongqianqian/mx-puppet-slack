@@ -2,8 +2,13 @@ import { Request, Response } from "express";
 import { WebClient, WebAPICallResult } from "@slack/web-api";
 import { IRetData } from "@pidong/mx-puppet-bridge";
 import * as escapeHtml from "escape-html";
+import {globalVar} from "@pidong/mx-puppet-bridge/lib/src/global";
 
 import { Config } from "./index";
+import {IPuppetData} from "@pidong/mx-puppet-bridge/lib/src";
+import {Log} from "@pidong/mx-puppet-bridge";
+
+const log = new Log("SlackOauth");
 
 const forbidden = 403;
 const getHtmlResponse = (title, content) => `<!DOCTYPE html>
@@ -43,6 +48,18 @@ export const oauthCallback = async (req: Request, res: Response) => {
 		res.send(getHtmlResponse(
 			`Your Slack token for ${escapeHtml(oauthData.team_name)} is`,
 			`<code>${escapeHtml(oauthData.access_token)}</code>`));
+		const retData = await this.getDataFromStrHook(oauthData.access_token);
+		let data: IPuppetData;
+		try {
+			data = (await retData.data) || {};
+			const puppetId = await this.puppet.provisioner.new(globalVar.currentUserMxid, data, retData.userId);
+			log.verbose("globalVar.currentUserMxid:", globalVar.currentUserMxid);
+			log.verbose("globalVar.currentRoomMxid:", globalVar.currentRoomMxid);
+			await this.sendMessage(globalVar.currentRoomMxid, `Created new link with ID ${puppetId}`);
+		} catch (e) {
+			// @ts-ignore
+			break;
+		}
 	} else {
 		res.status(forbidden).send(getHtmlResponse("Failed to get OAuth token", oauthData.error));
 	}
