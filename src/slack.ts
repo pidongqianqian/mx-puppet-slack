@@ -861,6 +861,33 @@ export class App {
 		await this.store.storeUserChannels([{channelId: teamIdAndChannelId[1], teamId: teamIdAndChannelId[0], userId: userMxid, roomId: roomId}]);
 	}
 	
+	public async handleCreateConversation(puppetId: string, roomId: string, roomName: string) {
+		log.verbose("handleCreateConversation puppetId: ", puppetId);
+		log.verbose("handleCreateConversation roomId: ", roomId);
+		const p = this.puppets[9];
+		log.verbose("handleCreateConversation this.puppets: ", this.puppets);
+		log.verbose("handleCreateConversation p: ", p);
+		if (!roomId || !p) {
+			return;
+		}
+		log.verbose("handleCreateConversation p.client.teams: ", p.client.teams);
+		for (const [, team] of p.client.teams) {
+			const converId = <unknown>(await team.create(roomName, true));
+			// await team.load();
+			if (converId) {
+				const teamConverId = team.id + '-' + converId;
+				log.verbose("handleCreateConversation teamConverId:", teamConverId);
+				let roomData: IRemoteRoom = {
+					roomId: teamConverId,
+					puppetId: -1,
+					isDirect: false,
+				};
+				await this.puppet.roomSync.insert(roomId, roomData);
+			}
+			
+		}
+	}
+	
 	public async createUser(remoteUser: IRemoteUser): Promise<IRemoteUser | null> {
 		const p = this.puppets[remoteUser.puppetId];
 		if (!p) {

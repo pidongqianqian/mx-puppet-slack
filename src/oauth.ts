@@ -4,7 +4,7 @@ import { IRetData } from "@pidong/mx-puppet-bridge";
 import * as escapeHtml from "escape-html";
 import {globalVar} from "@pidong/mx-puppet-bridge/lib/src/global";
 
-import { Config } from "./index";
+import { Config, Puppet} from "./index";
 import {IPuppetData} from "@pidong/mx-puppet-bridge/lib/src";
 import {Log} from "@pidong/mx-puppet-bridge";
 
@@ -47,18 +47,17 @@ export const oauthCallback = async (req: Request, res: Response) => {
 	if (oauthData.ok) {
 		res.send(getHtmlResponse(
 			`Your Slack token for ${escapeHtml(oauthData.team_name)} is`,
-			`<code>${escapeHtml(oauthData.access_token)}</code>`));
-		const retData = await this.getDataFromStrHook(oauthData.access_token);
+			`<code>${escapeHtml(oauthData.access_token)}</code>${escapeHtml(globalVar.currentUserMxid)}${escapeHtml(globalVar.currentRoomMxid)}`));
+		const retData = await getDataFromStrHook(oauthData.access_token + '');
 		let data: IPuppetData;
 		try {
 			data = (await retData.data) || {};
-			const puppetId = await this.puppet.provisioner.new(globalVar.currentUserMxid, data, retData.userId);
-			log.verbose("globalVar.currentUserMxid:", globalVar.currentUserMxid);
-			log.verbose("globalVar.currentRoomMxid:", globalVar.currentRoomMxid);
-			await this.sendMessage(globalVar.currentRoomMxid, `Created new link with ID ${puppetId}`);
+			const puppet = Puppet();
+			const puppetId = await puppet.provisioner.new(globalVar.currentUserMxid, data, retData.userId);
+			this.sendMessage(globalVar.currentRoomMxid, `Created new link with ID ${puppetId}`);
 		} catch (e) {
 			// @ts-ignore
-			break;
+			//break;
 		}
 	} else {
 		res.status(forbidden).send(getHtmlResponse("Failed to get OAuth token", oauthData.error));
