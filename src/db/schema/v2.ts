@@ -11,6 +11,7 @@ export class Schema implements IDbSchema {
 				team_id VARCHAR(255) NOT NULL,
 				user_id VARCHAR(255) NOT NULL,
 				room_id VARCHAR(255) NOT NULL,
+				puppet_id INT NOT NULL,
 				PRIMARY KEY (channel_id, team_id, user_id, room_id)
 			);`, "user_team_channel");
 	}

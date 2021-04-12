@@ -837,9 +837,18 @@ export class App {
 		if (!userMxid) {
 			return;
 		}
-		log.info(`111111Received create request for channel update userId=${userMxid} roomId=${room.roomId}`);
 		const teamIdAndChannelId = room.roomId.split('-');
-		await this.store.storeUserChannels([{channelId: teamIdAndChannelId[1], teamId: teamIdAndChannelId[0], userId: userMxid, roomId: room.mxid}]);
+		const currentPuppetId = await this.getPuppetId(teamIdAndChannelId[0], userMxid);
+		log.info(`handleAfterLinkRoom userId=${userMxid} roomId=${room.roomId}`);
+		if (currentPuppetId > 0) {
+			await this.store.storeUserChannels([{
+				channelId: teamIdAndChannelId[1],
+				teamId: teamIdAndChannelId[0],
+				userId: userMxid,
+				roomId: room.mxid,
+				puppetId: currentPuppetId,
+			}]);
+		}
 	}
 	
 	public async handleAfterUnlink(userId: string, teamId: string) {
@@ -851,6 +860,7 @@ export class App {
 		for (const item of items) {
 			this.puppet.botProvisioner.kickUser(userId, item.roomId, 'Unlink').catch(err => '');
 		}
+		await this.store.deleteTeamRooms(teamId, userId);
 	}
 
 	public async handleAfterCreateDM(roomId: string, userMxid: string, teamChannelId: string) {
@@ -858,13 +868,34 @@ export class App {
 			return;
 		}
 		const teamIdAndChannelId = teamChannelId.split('-');
-		await this.store.storeUserChannels([{channelId: teamIdAndChannelId[1], teamId: teamIdAndChannelId[0], userId: userMxid, roomId: roomId}]);
+		const currentPuppetId = await this.getPuppetId(teamIdAndChannelId[0], userMxid);
+		await this.store.storeUserChannels([{
+			channelId: teamIdAndChannelId[1], 
+			teamId: teamIdAndChannelId[0], 
+			userId: userMxid, 
+			roomId: roomId,
+			puppetId: currentPuppetId,
+		}]);
 	}
 	
-	public async handleCreateConversation(puppetId: string, roomId: string, roomName: string) {
+	private async getPuppetId(teamId:string, userMxid: string): Promise<number> {
+		const puppets = await this.puppet.provisioner.getForMxid(userMxid);
+		let currentPuppetId = 0;
+		puppets.forEach(puppet => {
+			if(puppet && puppet.userId) {
+				const puppetTeamId = puppet.userId.split('-')[0];
+				if (puppetTeamId === teamId) {
+					currentPuppetId = puppet.puppetId;
+				}
+			}
+		})
+		return currentPuppetId;
+	}
+	
+	public async handleCreateConversation(userMxid: string, roomId: string, roomName: string, puppetId: number) {
 		log.verbose("handleCreateConversation puppetId: ", puppetId);
 		log.verbose("handleCreateConversation roomId: ", roomId);
-		const p = this.puppets[9];
+		const p = this.puppets[puppetId];
 		log.verbose("handleCreateConversation this.puppets: ", this.puppets);
 		log.verbose("handleCreateConversation p: ", p);
 		if (!roomId || !p) {
@@ -883,8 +914,49 @@ export class App {
 					isDirect: false,
 				};
 				await this.puppet.roomSync.insert(roomId, roomData);
+				await this.store.storeUserChannels([{
+					channelId: <string>converId, 
+					teamId: team.id, 
+					userId: userMxid, 
+					roomId: roomId,
+					puppetId: puppetId,
+				}]);
+				// invite room members to slack conversation
+				
 			}
-			
+		}
+	}
+	
+	public async handleInviteUser(roomId: string, memberMxId: string, userId: string) {
+		log.verbose("handleInviteUser", {roomId, memberMxId, userId});
+		const memberIdWithLine = memberMxId.substring(memberMxId.indexOf('=')+4, memberMxId.indexOf(':'));
+		const memberId = memberIdWithLine.replace(/_/g, "");
+		
+		const teamIdWithLine = memberMxId.substring(memberMxId.indexOf('___')+1, memberMxId.indexOf('='));
+		const teamId = teamIdWithLine.replace(/_/g, "");
+		
+		if(!memberId || !teamId) {
+			return;
+		}
+		log.verbose("handleInviteUser memberId teamId", {memberId, teamId});
+		const currentPuppetId = await this.getPuppetId(teamId.toUpperCase(), userId);
+		log.verbose("handleInviteUser currentPuppetId", currentPuppetId);
+		const p = this.puppets[currentPuppetId];
+		if (!p) {
+			return;
+		}
+		const items = await this.store.getRoomByRoomIdAndUserId(roomId, userId);
+		log.verbose("handleInviteUser items ", items);
+		if (items.length > 0 && items[0].channelId) {
+			for (const [, team] of p.client.teams) {
+				const result = <unknown>(await team.invite(items[0].channelId, memberId.toUpperCase()));
+				log.verbose("handleInviteUser result ", result);
+				if (result === 'true' || result === true) {
+					log.verbose("handleInviteUser success");
+				} else {
+					log.verbose("handleInviteUser failed");
+				}
+			}
 		}
 	}
 	

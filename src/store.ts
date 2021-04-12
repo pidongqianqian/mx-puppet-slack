@@ -7,7 +7,8 @@ type userTeamChannel = {
 	userId: string,
 	teamId: string,
 	channelId: string,
-	roomId: string
+	roomId: string,
+	puppetId: number
 }
 type userTeamChannels = userTeamChannel[];
 
@@ -58,15 +59,15 @@ export class SlackStore {
 	public async storeUserChannels(userTeamChannels: userTeamChannels) {
 		if (this.store.db.type === "postgres") {
 			await this.store.db.BulkInsert(`INSERT INTO user_team_channel (
-				channel_id, team_id, user_id, room_id
+				channel_id, team_id, user_id, room_id, puppet_id
 			) VALUES (
-				$channelId, $teamId, $userId, $roomId
+				$channelId, $teamId, $userId, $roomId. $puppetId
 			) ON CONFLICT DO NOTHING;`, userTeamChannels);
 		} else {
 			await this.store.db.BulkInsert(`INSERT OR IGNORE INTO user_team_channel (
-				channel_id, team_id, user_id, room_id
+				channel_id, team_id, user_id, room_id, puppet_id
 			) VALUES (
-				$channelId, $teamId, $userId, $roomId
+				$channelId, $teamId, $userId, $roomId, $puppetId
 			)`, userTeamChannels);
 		}
 	}
@@ -82,6 +83,25 @@ export class SlackStore {
 					userId: row.user_id as string,
 					channelId: row.channel_id as string,
 					teamId: row.team_id as string,
+					puppetId: row.puppet_id as number
+				});
+			}
+		}
+		return ret;
+	}
+
+	public async getRoomByRoomIdAndUserId(roomId: string, userId: string) {
+		const rows = await this.store.db.All("SELECT * FROM user_team_channel WHERE room_id = $t AND user_id = $u",
+			{ t: roomId, u: userId });
+		const ret: userTeamChannel[] = [];
+		for (const row of rows) {
+			if (row) {
+				ret.push({
+					roomId: row.room_id as string,
+					userId: row.user_id as string,
+					channelId: row.channel_id as string,
+					teamId: row.team_id as string,
+					puppetId: row.puppet_id as number,
 				});
 			}
 		}
