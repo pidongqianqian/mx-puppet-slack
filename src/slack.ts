@@ -24,6 +24,7 @@ import { SlackStore } from "./store";
 import * as escapeHtml from "escape-html";
 import {Config, Puppet} from "./index";
 import {IRoomStoreEntry} from "@pidong/mx-puppet-bridge/lib/src/db/interfaces";
+import {Channel, User} from "soru-slack-client/lib";
 
 const log = new Log("SlackPuppet:slack");
 
@@ -318,6 +319,43 @@ export class App {
 			const params = await this.getSendParams(puppetId, reaction.message);
 			const e = this.slackToEmoji(`:${reaction.reaction}:`);
 			await this.puppet.removeReaction(params, reaction.message.ts, e);
+		});
+
+		client.on("memberJoinedChannel", async (user: User, channel: Channel) => {
+			log.verbose("member joined channel", user, channel);
+			// const params = await this.getSendParams(puppetId, reaction.message);
+			// const e = this.slackToEmoji(`:${reaction.reaction}:`);
+			// await this.puppet.removeReaction(params, reaction.message.ts, e);
+			log.verbose("member joined channel user.fullId", user.fullId);
+			let userRemote = <IRemoteUser>{userId: user.fullId, puppetId: -1};
+			const userMXID = await this.puppet.getMxidForUser(userRemote, false);
+			log.verbose("member joined getMxidForUser", userMXID);
+			log.verbose("member joined channel.team.id", channel.team.id);
+			const items = await this.store.getRoomByChannelIdAndTeamId(channel.id, channel.team.id);
+			log.verbose("member joined items", items);
+			if (items && items.length > 0) {
+				log.verbose("member joined items[0].roomId", items[0].roomId);
+				await this.puppet.botIntent.underlyingClient.inviteUser(userMXID, items[0].roomId);
+			}
+		});
+
+		client.on("memberLeftChannel", async (user: User, channel: Channel) => {
+			log.verbose("member left channel", user, channel);
+			// const params = await this.getSendParams(puppetId, reaction.message);
+			// const e = this.slackToEmoji(`:${reaction.reaction}:`);
+			// await this.puppet.removeReaction(params, reaction.message.ts, e);
+			log.verbose("member left channel user.fullId", user.fullId);
+			let userRemote = <IRemoteUser>{userId: user.fullId, puppetId: -1};
+			const userMXID = await this.puppet.getMxidForUser(userRemote, false);
+			log.verbose("member left getMxidForUser", userMXID);
+			log.verbose("member left channel.team.id", channel.team.id);
+			log.verbose("member left channel.id", channel.id);
+			const items = await this.store.getRoomByChannelIdAndTeamId(channel.id, channel.team.id);
+			log.verbose("member left items", items);
+			if (items && items.length > 0) {
+				log.verbose("member left items[0].roomId", items[0].roomId);
+				await this.puppet.botIntent.kickUser(userMXID, items[0].roomId, 'kick');
+			}
 		});
 		p.client = client;
 		try {
@@ -921,6 +959,10 @@ export class App {
 					roomId: roomId,
 					puppetId: puppetId,
 				}]);
+				// change power
+				const ADMIN_POWER_LEVEL = 100;
+				await this.puppet.matrixClients[userMxid].setUserPowerLevel(this.puppet.botIntent.userId, roomId, ADMIN_POWER_LEVEL);
+				await this.puppet.matrixClients[userMxid].setUserPowerLevel(userMxid, roomId, 50);
 				// invite room members to slack conversation
 				
 			}
@@ -955,6 +997,39 @@ export class App {
 					log.verbose("handleInviteUser success");
 				} else {
 					log.verbose("handleInviteUser failed");
+				}
+			}
+		}
+	}
+
+	public async handleKickUser(roomId: string, memberMxId: string, userId: string) {
+		log.verbose("handleKickUser", {roomId, memberMxId, userId});
+		const memberIdWithLine = memberMxId.substring(memberMxId.indexOf('=')+4, memberMxId.indexOf(':'));
+		const memberId = memberIdWithLine.replace(/_/g, "");
+
+		const teamIdWithLine = memberMxId.substring(memberMxId.indexOf('___')+1, memberMxId.indexOf('='));
+		const teamId = teamIdWithLine.replace(/_/g, "");
+
+		if(!memberId || !teamId) {
+			return;
+		}
+		log.verbose("handleKickUser memberId teamId", {memberId, teamId});
+		const currentPuppetId = await this.getPuppetId(teamId.toUpperCase(), userId);
+		log.verbose("handleKickUser currentPuppetId", currentPuppetId);
+		const p = this.puppets[currentPuppetId];
+		if (!p) {
+			return;
+		}
+		const items = await this.store.getRoomByRoomIdAndUserId(roomId, userId);
+		log.verbose("handleKickUser items ", items);
+		if (items.length > 0 && items[0].channelId) {
+			for (const [, team] of p.client.teams) {
+				const result = <unknown>(await team.kick(items[0].channelId, memberId.toUpperCase()));
+				log.verbose("handleKickUser result ", result);
+				if (result === 'true' || result === true) {
+					log.verbose("handleKickUser success");
+				} else {
+					log.verbose("handleKickUser failed");
 				}
 			}
 		}

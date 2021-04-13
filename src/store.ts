@@ -108,6 +108,24 @@ export class SlackStore {
 		return ret;
 	}
 
+	public async getRoomByChannelIdAndTeamId(channelId: string, teamId: string) {
+		const rows = await this.store.db.All("SELECT * FROM user_team_channel WHERE channel_id = $t AND team_id = $u",
+			{ t: channelId, u: teamId });
+		const ret: userTeamChannel[] = [];
+		for (const row of rows) {
+			if (row) {
+				ret.push({
+					roomId: row.room_id as string,
+					userId: row.user_id as string,
+					channelId: row.channel_id as string,
+					teamId: row.team_id as string,
+					puppetId: row.puppet_id as number,
+				});
+			}
+		}
+		return ret;
+	}
+
 	public async deleteTeamRooms(teamId: string, userId: string) {
 		await this.store.db.Run("DELETE FROM user_team_channel WHERE team_id = $t AND user_id = $u",
 			{ t: teamId, u: userId });
