@@ -47,6 +47,7 @@ export class App {
 	private messageDeduplicator: MessageDeduplicator;
 	private provisioningAPI: SlackProvisioningAPI;
 	private store: SlackStore;
+	private currentMessageBuff: Array<string> = [];
 	constructor(
 		private puppet: PuppetBridge,
 	) {
@@ -336,6 +337,8 @@ export class App {
 			if (items && items.length > 0) {
 				log.verbose("member joined items[0].roomId", items[0].roomId);
 				await this.puppet.botIntent.underlyingClient.inviteUser(userMXID, items[0].roomId);
+				const intent = this.puppet.AS.getIntentForUserId(userMXID)
+				await intent.joinRoom(items[0].roomId);
 			}
 		});
 
@@ -354,7 +357,7 @@ export class App {
 			log.verbose("member left items", items);
 			if (items && items.length > 0) {
 				log.verbose("member left items[0].roomId", items[0].roomId);
-				await this.puppet.botIntent.kickUser(userMXID, items[0].roomId, 'kick');
+				await this.puppet.botIntent.kickUser(userMXID, items[0].roomId, 'leave');
 			}
 		});
 		p.client = client;
@@ -391,6 +394,10 @@ export class App {
 		if (msg.empty && !msg.attachments && !msg.files) {
 			return; // nothing to do
 		}
+		if(msg.text && msg.text.match(/<@.*> has left the channel/)) {
+			return;
+		}
+
 		if (msg.author instanceof Slack.Bot) {
 			const appUserId = msg.client.users.get(msg.author.team.id);
 			if (msg.author.partial) {
@@ -404,54 +411,79 @@ export class App {
 		const client = this.puppets[puppetId].client;
 		const parserOpts = this.getSlackMessageParserOpts(puppetId, msg.channel.team);
 		log.verbose("Received message.");
-		const dedupeKey = `${puppetId};${params.room.roomId}`;
-		if (!(msg.empty && !msg.attachments) &&
-			!await this.messageDeduplicator.dedupe(dedupeKey, params.user.userId, params.eventId, msg.text || "")) {
-			const res = await this.slackMessageParser.FormatMessage(parserOpts, {
-				text: msg.text || "",
-				blocks: msg.blocks || undefined,
-				attachments: msg.attachments || undefined,
-			});
-			const opts = {
-				body: res.body,
-				formattedBody: res.formatted_body,
-				emote: msg.meMessage,
-			};
-			if (msg.threadTs) {
-				const replyTs = this.threadSendTs[msg.threadTs] || msg.threadTs;
-				this.threadSendTs[msg.threadTs] = msg.ts;
-				this.tsThreads[msg.ts] = msg.threadTs;
-				await this.puppet.sendReply(params, replyTs, opts);
+		
+		// The reason for the delay of 500ms(setTimout) is that the process of sending the 
+		// matrix to the slack server (chan.sendMessage), and listening to the slack message 
+		// is asynchronous(handleSlackMessage).
+		// 
+		// The monitoring process is often faster than getting the response from chan.sendMessage, 
+		// so the bridge cannot know that the message is actually sent from the matrix, and there 
+		// is no need to synchronize the same message to the matrix again.
+		
+		// 500ms delay can effectively solve this problem.
+		setTimeout(async () => {
+			// check if message has already synced
+			const roomId = msg.channel.team.id + '-' + msg.channel.id;
+			if (this.currentMessageBuff.indexOf(roomId + msg.ts) > -1) {
+				log.verbose('this message has already synced');
+				return;
 			} else {
-				await this.puppet.sendMessage(params, opts);
-			}
-		}
-		if (msg.files) {
-			// this has files
-			for (const f of msg.files) {
-				if (f.title &&
-					await this.messageDeduplicator.dedupe(dedupeKey, params.user.userId, params.eventId, "file:" + f.title)) {
-					// skip this, we sent it!
-					continue;
-				}
-				try {
-					const buffer = await client.downloadFile(f.url_private);
-					await this.puppet.sendFileDetect(params, buffer, f.name);
-				} catch (err) {
-					await this.puppet.sendMessage(params, {
-						body: `sent a file: ${f.url_private}`,
-						emote: true,
-					});
-				}
-				if (f.initial_comment) {
-					const ret = await this.slackMessageParser.FormatText(parserOpts, f.initial_comment);
-					await this.puppet.sendMessage(params, {
-						body: ret.body,
-						formattedBody: ret.formatted_body,
-					});
+				const events = await this.puppet.eventSync.getMatrix({roomId, puppetId: -1}, msg.ts);
+				if (events && events.length > 0) {
+					log.verbose('this message has already synced');
+					return;
 				}
 			}
-		}
+
+			const dedupeKey = `${puppetId};${params.room.roomId}`;
+			if (!(msg.empty && !msg.attachments) &&
+				!await this.messageDeduplicator.dedupe(dedupeKey, params.user.userId, params.eventId, msg.text || "")) {
+				const res = await this.slackMessageParser.FormatMessage(parserOpts, {
+					text: msg.text || "",
+					blocks: msg.blocks || undefined,
+					attachments: msg.attachments || undefined,
+				});
+				const opts = {
+					body: res.body,
+					formattedBody: res.formatted_body,
+					emote: msg.meMessage,
+				};
+				if (msg.threadTs) {
+					const replyTs = this.threadSendTs[msg.threadTs] || msg.threadTs;
+					this.threadSendTs[msg.threadTs] = msg.ts;
+					this.tsThreads[msg.ts] = msg.threadTs;
+					await this.puppet.sendReply(params, replyTs, opts);
+				} else {
+					await this.puppet.sendMessage(params, opts);
+				}
+			}
+			if (msg.files) {
+				// this has files
+				for (const f of msg.files) {
+					if (f.title &&
+						await this.messageDeduplicator.dedupe(dedupeKey, params.user.userId, params.eventId, "file:" + f.title)) {
+						// skip this, we sent it!
+						continue;
+					}
+					try {
+						const buffer = await client.downloadFile(f.url_private);
+						await this.puppet.sendFileDetect(params, buffer, f.name);
+					} catch (err) {
+						await this.puppet.sendMessage(params, {
+							body: `sent a file: ${f.url_private}`,
+							emote: true,
+						});
+					}
+					if (f.initial_comment) {
+						const ret = await this.slackMessageParser.FormatText(parserOpts, f.initial_comment);
+						await this.puppet.sendMessage(params, {
+							body: ret.body,
+							formattedBody: ret.formatted_body,
+						});
+					}
+				}
+			}
+		}, 500);
 	}
 
 	public async handleSlackMessageChanged(puppetId: number, msg1: Slack.Message, msg2: Slack.Message) {
@@ -498,6 +530,14 @@ export class App {
 		const params = await this.getSendParams(puppetId, msg);
 		await this.puppet.sendRedact(params, msg.ts);
 	}
+	
+	private async insertEventStore(room: IRemoteRoom, matrixId: string, remoteId?: string) {
+		if(this.currentMessageBuff.length > 9) {
+			this.currentMessageBuff.shift();
+		}
+		this.currentMessageBuff.push(room.roomId + remoteId);
+		await this.puppet.eventSync.insert(room, matrixId, remoteId);
+	}
 
 	public async handleMatrixMessage(room: IRemoteRoom, data: IMessageEvent, asUser: ISendingUser | null, event: any) {
 		const p = this.puppets[room.puppetId];
@@ -531,8 +571,7 @@ export class App {
 		if (msg.text.match(/^\/[0-9a-zA-Z]+/)) {
 			const [command, parameters] = msg.text.split(/ (.+)/);
 			const retEventId = await chan.sendCommand(command, parameters);
-			await this.puppet.eventSync.insert(room, data.eventId!, retEventId);
-
+			await this.insertEventStore(room, data.eventId!, retEventId);
 			return;
 		}
 
@@ -554,7 +593,7 @@ export class App {
 		}
 		this.messageDeduplicator.unlock(dedupeKey, p.data.self.id, eventId);
 		if (eventId) {
-			await this.puppet.eventSync.insert(room, data.eventId!, eventId);
+			await this.insertEventStore(room, data.eventId!, eventId);
 		}
 	}
 
@@ -604,7 +643,7 @@ export class App {
 		}
 		this.messageDeduplicator.unlock(dedupeKey, p.data.self.id, newEventId);
 		if (newEventId) {
-			await this.puppet.eventSync.insert(room, data.eventId!, newEventId);
+			await this.insertEventStore(room, data.eventId!, newEventId);
 		}
 	}
 
@@ -663,7 +702,7 @@ export class App {
 		this.messageDeduplicator.unlock(dedupeKey, p.data.self.id, newEventId);
 		if (newEventId) {
 			this.tsThreads[newEventId] = tsThread;
-			await this.puppet.eventSync.insert(room, data.eventId!, newEventId);
+			await this.insertEventStore(room, data.eventId!, newEventId);
 		}
 	}
 
@@ -777,7 +816,7 @@ export class App {
 			});
 		}
 		if (eventId) {
-			await this.puppet.eventSync.insert(room, data.eventId!, eventId);
+			await this.insertEventStore(room, data.eventId!, eventId);
 		}
 	}
 
@@ -814,7 +853,7 @@ export class App {
 		}
 		this.messageDeduplicator.unlock(dedupeKey, p.data.self.id, eventId);
 		if (eventId) {
-			await this.puppet.eventSync.insert(room, data.eventId!, eventId);
+			await this.insertEventStore(room, data.eventId!, eventId);
 		}
 	}
 
