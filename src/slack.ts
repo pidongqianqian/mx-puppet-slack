@@ -969,18 +969,19 @@ export class App {
 		return currentPuppetId;
 	}
 	
-	public async handleCreateConversation(userMxid: string, roomId: string, roomName: string, puppetId: number) {
+	public async handleCreateConversation(userMxid: string, roomId: string, roomName: string, puppetId: number, isGroup: boolean) {
 		log.verbose("handleCreateConversation puppetId: ", puppetId);
 		log.verbose("handleCreateConversation roomId: ", roomId);
 		const p = this.puppets[puppetId];
 		log.verbose("handleCreateConversation this.puppets: ", this.puppets);
 		log.verbose("handleCreateConversation p: ", p);
+		log.verbose("handleCreateConversation this.puppet.botIntent.userId: ", this.puppet.botIntent.userId);
 		if (!roomId || !p) {
 			return;
 		}
 		log.verbose("handleCreateConversation p.client.teams: ", p.client.teams);
 		for (const [, team] of p.client.teams) {
-			const converId = <unknown>(await team.create(roomName, true));
+			const converId = <unknown>(await team.create(roomName, isGroup));
 			// await team.load();
 			if (converId) {
 				const teamConverId = team.id + '-' + converId;
