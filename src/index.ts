@@ -139,12 +139,12 @@ async function run() {
 	puppet.on("file", slack.handleMatrixFile.bind(slack));
 	puppet.on("presence", slack.handleMatrixPresence.bind(slack));
 	puppet.on("typing", slack.handleMatrixTyping.bind(slack));
-	puppet.on("afterLinkRoom", slack.handleAfterLinkRoom.bind(slack));
-	puppet.on("afterUnlink", slack.handleAfterUnlink.bind(slack));
-	puppet.on("afterCreateDM", slack.handleAfterCreateDM.bind(slack));
-	puppet.on("createConversation", slack.handleCreateConversation.bind(slack));
-	puppet.on("inviteUser", slack.handleInviteUser.bind(slack));
-	puppet.on("kickUser", slack.handleKickUser.bind(slack));
+	puppet.on("afterLinkRoom", slack.handleMatrixAfterLinkRoom.bind(slack));
+	puppet.on("afterUnlink", slack.handleMatrixAfterUnlink.bind(slack));
+	puppet.on("afterCreateDM", slack.handleMatrixAfterCreateDM.bind(slack));
+	puppet.on("createConversation", slack.handleMatrixCreateConversation.bind(slack));
+	puppet.on("inviteUser", slack.handleMatrixInviteUser.bind(slack));
+	puppet.on("kickUser", slack.handleMatrixKickUser.bind(slack));
 	puppet.setCreateUserHook(slack.createUser.bind(slack));
 	puppet.setCreateRoomHook(slack.createRoom.bind(slack));
 	puppet.setCreateGroupHook(slack.createGroup.bind(slack));

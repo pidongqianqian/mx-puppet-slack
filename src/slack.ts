@@ -339,6 +339,8 @@ export class App {
 				await this.puppet.botIntent.underlyingClient.inviteUser(userMXID, items[0].roomId);
 				const intent = this.puppet.AS.getIntentForUserId(userMXID)
 				await intent.joinRoom(items[0].roomId);
+			}else {
+				await this.handleSlackCreateFromSlack(puppetId, user, channel);
 			}
 		});
 
@@ -390,6 +392,39 @@ export class App {
 		await this.removePuppet(puppetId);
 	}
 
+	public async handleSlackCreateFromSlack(puppetId: number, user: User, channel: Channel) {
+		log.verbose("handleSlackCreateFromSlack", {puppetId, user, channel});
+		const {mxid, alias} = await this.puppet.getMxidAndAliasNew({
+			puppetId: puppetId,
+			roomId: channel.fullId,
+		});
+		log.verbose("handleSlackCreateFromSlack1", {mxid, alias});
+		const invitee = await this.puppet.puppetStore.getMxid(puppetId);
+		if (mxid || alias) {
+			const id = mxid ? mxid : alias;
+			const parts = await this.puppet.roomSync.getPartsFromMxid(id);
+			if (!parts) {
+				return;
+			}
+			log.verbose("handleSlackCreateFromSlack2", {mxid, alias});
+			const res =  await this.puppet.roomSync.getMxid(parts);
+			log.verbose("handleSlackCreateFromSlack3", res);
+			if (res && res.created && res.mxid) {
+				const client = this.puppet.botIntent.underlyingClient;
+				client.inviteUser(invitee, res.mxid);
+				
+				const teamIdAndChannelId = channel.fullId.split('-');
+				await this.store.storeUserChannels([{
+					channelId: teamIdAndChannelId[1],
+					teamId: teamIdAndChannelId[0],
+					userId: invitee,
+					roomId: res.mxid,
+					puppetId: puppetId,
+				}]);
+			}
+		}
+	}
+	
 	public async handleSlackMessage(puppetId: number, msg: Slack.Message) {
 		if (msg.empty && !msg.attachments && !msg.files) {
 			return; // nothing to do
@@ -910,13 +945,13 @@ export class App {
 		return await this.getRoomParams(room.puppetId, chan);
 	}
 
-	public async handleAfterLinkRoom(room: IRoomStoreEntry, userMxid: string) {
+	public async handleMatrixAfterLinkRoom(room: IRoomStoreEntry, userMxid: string) {
 		if (!userMxid) {
 			return;
 		}
 		const teamIdAndChannelId = room.roomId.split('-');
 		const currentPuppetId = await this.getPuppetId(teamIdAndChannelId[0], userMxid);
-		log.info(`handleAfterLinkRoom userId=${userMxid} roomId=${room.roomId}`);
+		log.info(`handleMatrixAfterLinkRoom userId=${userMxid} roomId=${room.roomId}`);
 		if (currentPuppetId > 0) {
 			await this.store.storeUserChannels([{
 				channelId: teamIdAndChannelId[1],
@@ -928,19 +963,19 @@ export class App {
 		}
 	}
 	
-	public async handleAfterUnlink(userId: string, teamId: string) {
+	public async handleMatrixAfterUnlink(userId: string, teamId: string) {
 		if (!userId || !teamId) {
 			return;
 		}
 		const items = await this.store.getTeamRooms(teamId, userId);
-		log.verbose("handleAfterUnlink items:", items);
+		log.verbose("handleMatrixAfterUnlink items:", items);
 		for (const item of items) {
 			this.puppet.botProvisioner.kickUser(userId, item.roomId, 'Unlink').catch(err => '');
 		}
 		await this.store.deleteTeamRooms(teamId, userId);
 	}
 
-	public async handleAfterCreateDM(roomId: string, userMxid: string, teamChannelId: string) {
+	public async handleMatrixAfterCreateDM(roomId: string, userMxid: string, teamChannelId: string) {
 		if (!roomId || !userMxid || !teamChannelId) {
 			return;
 		}
@@ -969,23 +1004,23 @@ export class App {
 		return currentPuppetId;
 	}
 	
-	public async handleCreateConversation(userMxid: string, roomId: string, roomName: string, puppetId: number, isGroup: boolean) {
-		log.verbose("handleCreateConversation puppetId: ", puppetId);
-		log.verbose("handleCreateConversation roomId: ", roomId);
+	public async handleMatrixCreateConversation(userMxid: string, roomId: string, roomName: string, puppetId: number, isGroup: boolean) {
+		log.verbose("handleMatrixCreateConversation puppetId: ", puppetId);
+		log.verbose("handleMatrixCreateConversation roomId: ", roomId);
 		const p = this.puppets[puppetId];
-		log.verbose("handleCreateConversation this.puppets: ", this.puppets);
-		log.verbose("handleCreateConversation p: ", p);
-		log.verbose("handleCreateConversation this.puppet.botIntent.userId: ", this.puppet.botIntent.userId);
+		log.verbose("handleMatrixCreateConversation this.puppets: ", this.puppets);
+		log.verbose("handleMatrixCreateConversation p: ", p);
+		log.verbose("handleMatrixCreateConversation this.puppet.botIntent.userId: ", this.puppet.botIntent.userId);
 		if (!roomId || !p) {
 			return;
 		}
-		log.verbose("handleCreateConversation p.client.teams: ", p.client.teams);
+		log.verbose("handleMatrixCreateConversation p.client.teams: ", p.client.teams);
 		for (const [, team] of p.client.teams) {
 			const converId = <unknown>(await team.create(roomName, isGroup));
 			// await team.load();
 			if (converId) {
 				const teamConverId = team.id + '-' + converId;
-				log.verbose("handleCreateConversation teamConverId:", teamConverId);
+				log.verbose("handleMatrixCreateConversation teamConverId:", teamConverId);
 				let roomData: IRemoteRoom = {
 					roomId: teamConverId,
 					puppetId: -1,
@@ -1006,20 +1041,20 @@ export class App {
 				
 				// invite room members to slack conversation
 				const members = await this.puppet.botIntent.underlyingClient.getRoomMembers(roomId);
-				log.verbose("handleCreateConversation members: ", members);
+				log.verbose("handleMatrixCreateConversation members: ", members);
 				if(members && members.length > 2) {
-					log.verbose("handleCreateConversation members 123: ");
+					log.verbose("handleMatrixCreateConversation members 123: ");
 					let membersMxid = '';
 					members.forEach(member => {
-						log.verbose("handleCreateConversation member.raw: ", member.raw);
-						log.verbose("handleCreateConversation member.raw.user_id: ", member.raw.user_id);
+						log.verbose("handleMatrixCreateConversation member.raw: ", member.raw);
+						log.verbose("handleMatrixCreateConversation member.raw.user_id: ", member.raw.user_id);
 						if (member.raw && member.raw.user_id) {
 							if (member.raw.user_id !== userMxid && member.raw.user_id !== this.puppet.botIntent.userId) {
 								membersMxid += member.raw.user_id + ',';
 							}
 						}
 					});
-					await this.handleInviteUser(roomId, membersMxid, userMxid, puppetId);
+					await this.handleMatrixInviteUser(roomId, membersMxid, userMxid, puppetId);
 				}
 			}
 		}
@@ -1053,41 +1088,41 @@ export class App {
 		return {memberId, teamId};
 	}
 	
-	public async handleInviteUser(roomId: string, membersMxId: string, userId: string, puppetId?: number) {
-		log.verbose("handleInviteUser", {roomId, membersMxId, userId, puppetId});
+	public async handleMatrixInviteUser(roomId: string, membersMxId: string, userId: string, puppetId?: number) {
+		log.verbose("handleMatrixInviteUser", {roomId, membersMxId, userId, puppetId});
 		const {memberId, teamId} = this.parseMemberIdAndTeamId(membersMxId);
 		if(!memberId || !teamId) {
 			return;
 		}
 		
-		log.verbose("handleInviteUser memberId teamId", {memberId, teamId});
+		log.verbose("handleMatrixInviteUser memberId teamId", {memberId, teamId});
 		let currentPuppetId = puppetId;
 		if (!currentPuppetId) {
 			currentPuppetId = await this.getPuppetId(teamId.toUpperCase(), userId);
 		}
-		log.verbose("handleInviteUser currentPuppetId", currentPuppetId);
+		log.verbose("handleMatrixInviteUser currentPuppetId", currentPuppetId);
 		const p = this.puppets[currentPuppetId];
 		if (!p) {
 			return;
 		}
 		
 		const items = await this.store.getRoomByRoomIdAndUserId(roomId, userId);
-		log.verbose("handleInviteUser items ", items);
+		log.verbose("handleMatrixInviteUser items ", items);
 		if (items.length > 0 && items[0].channelId) {
 			for (const [, team] of p.client.teams) {
 				const result = <unknown>(await team.invite(items[0].channelId, memberId.toUpperCase()));
-				log.verbose("handleInviteUser result ", result);
+				log.verbose("handleMatrixInviteUser result ", result);
 				if (result === 'true' || result === true) {
-					log.verbose("handleInviteUser success");
+					log.verbose("handleMatrixInviteUser success");
 				} else {
-					log.verbose("handleInviteUser failed");
+					log.verbose("handleMatrixInviteUser failed");
 				}
 			}
 		}
 	}
 
-	public async handleKickUser(roomId: string, memberMxId: string, userId: string) {
-		log.verbose("handleKickUser", {roomId, memberMxId, userId});
+	public async handleMatrixKickUser(roomId: string, memberMxId: string, userId: string) {
+		log.verbose("handleMatrixKickUser", {roomId, memberMxId, userId});
 		const memberIdWithLine = memberMxId.substring(memberMxId.indexOf('=')+4, memberMxId.indexOf(':'));
 		const memberId = memberIdWithLine.replace(/_/g, "");
 
@@ -1097,23 +1132,23 @@ export class App {
 		if(!memberId || !teamId) {
 			return;
 		}
-		log.verbose("handleKickUser memberId teamId", {memberId, teamId});
+		log.verbose("handleMatrixKickUser memberId teamId", {memberId, teamId});
 		const currentPuppetId = await this.getPuppetId(teamId.toUpperCase(), userId);
-		log.verbose("handleKickUser currentPuppetId", currentPuppetId);
+		log.verbose("handleMatrixKickUser currentPuppetId", currentPuppetId);
 		const p = this.puppets[currentPuppetId];
 		if (!p) {
 			return;
 		}
 		const items = await this.store.getRoomByRoomIdAndUserId(roomId, userId);
-		log.verbose("handleKickUser items ", items);
+		log.verbose("handleMatrixKickUser items ", items);
 		if (items.length > 0 && items[0].channelId) {
 			for (const [, team] of p.client.teams) {
 				const result = <unknown>(await team.kick(items[0].channelId, memberId.toUpperCase()));
-				log.verbose("handleKickUser result ", result);
+				log.verbose("handleMatrixKickUser result ", result);
 				if (result === 'true' || result === true) {
-					log.verbose("handleKickUser success");
+					log.verbose("handleMatrixKickUser success");
 				} else {
-					log.verbose("handleKickUser failed");
+					log.verbose("handleMatrixKickUser failed");
 				}
 			}
 		}
