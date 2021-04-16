@@ -1003,30 +1003,74 @@ export class App {
 				const ADMIN_POWER_LEVEL = 100;
 				await this.puppet.matrixClients[userMxid].setUserPowerLevel(this.puppet.botIntent.userId, roomId, ADMIN_POWER_LEVEL);
 				await this.puppet.matrixClients[userMxid].setUserPowerLevel(userMxid, roomId, 50);
-				// invite room members to slack conversation
 				
+				// invite room members to slack conversation
+				const members = await this.puppet.botIntent.underlyingClient.getRoomMembers(roomId);
+				log.verbose("handleCreateConversation members: ", members);
+				if(members && members.length > 2) {
+					log.verbose("handleCreateConversation members 123: ");
+					let membersMxid = '';
+					members.forEach(member => {
+						log.verbose("handleCreateConversation member.raw: ", member.raw);
+						log.verbose("handleCreateConversation member.raw.user_id: ", member.raw.user_id);
+						if (member.raw && member.raw.user_id) {
+							if (member.raw.user_id !== userMxid && member.raw.user_id !== this.puppet.botIntent.userId) {
+								membersMxid += member.raw.user_id + ',';
+							}
+						}
+					});
+					await this.handleInviteUser(roomId, membersMxid, userMxid, puppetId);
+				}
 			}
 		}
 	}
 	
-	public async handleInviteUser(roomId: string, memberMxId: string, userId: string) {
-		log.verbose("handleInviteUser", {roomId, memberMxId, userId});
-		const memberIdWithLine = memberMxId.substring(memberMxId.indexOf('=')+4, memberMxId.indexOf(':'));
-		const memberId = memberIdWithLine.replace(/_/g, "");
-		
-		const teamIdWithLine = memberMxId.substring(memberMxId.indexOf('___')+1, memberMxId.indexOf('='));
-		const teamId = teamIdWithLine.replace(/_/g, "");
-		
+	private parseMemberIdAndTeamId(membersMxId: string) {
+		let memberId = '';
+		let teamId = '';
+		if (membersMxId.indexOf(',') > -1) {
+			const membersMxIdArr = membersMxId.split(',');
+			membersMxIdArr.forEach(memberMxId => {
+				if (memberMxId) {
+					const memberIdWithLine = memberMxId.substring(memberMxId.indexOf('=')+4, memberMxId.indexOf(':'));
+					if (!memberId) {
+						memberId += memberIdWithLine.replace(/_/g, "");
+					} else {
+						memberId += ',' + memberIdWithLine.replace(/_/g, "");
+					}
+					if(!teamId) {
+						const teamIdWithLine = memberMxId.substring(memberMxId.indexOf('___')+1, memberMxId.indexOf('='));
+						teamId = teamIdWithLine.replace(/_/g, "");
+					}
+				}
+			})
+		} else {
+			const memberIdWithLine = membersMxId.substring(membersMxId.indexOf('=')+4, membersMxId.indexOf(':'));
+			memberId += memberIdWithLine.replace(/_/g, "");
+			const teamIdWithLine = membersMxId.substring(membersMxId.indexOf('___')+1, membersMxId.indexOf('='));
+			teamId = teamIdWithLine.replace(/_/g, "");
+		}
+		return {memberId, teamId};
+	}
+	
+	public async handleInviteUser(roomId: string, membersMxId: string, userId: string, puppetId?: number) {
+		log.verbose("handleInviteUser", {roomId, membersMxId, userId, puppetId});
+		const {memberId, teamId} = this.parseMemberIdAndTeamId(membersMxId);
 		if(!memberId || !teamId) {
 			return;
 		}
+		
 		log.verbose("handleInviteUser memberId teamId", {memberId, teamId});
-		const currentPuppetId = await this.getPuppetId(teamId.toUpperCase(), userId);
+		let currentPuppetId = puppetId;
+		if (!currentPuppetId) {
+			currentPuppetId = await this.getPuppetId(teamId.toUpperCase(), userId);
+		}
 		log.verbose("handleInviteUser currentPuppetId", currentPuppetId);
 		const p = this.puppets[currentPuppetId];
 		if (!p) {
 			return;
 		}
+		
 		const items = await this.store.getRoomByRoomIdAndUserId(roomId, userId);
 		log.verbose("handleInviteUser items ", items);
 		if (items.length > 0 && items[0].channelId) {
