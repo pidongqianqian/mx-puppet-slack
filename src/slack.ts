@@ -323,19 +323,14 @@ export class App {
 		});
 
 		client.on("memberJoinedChannel", async (user: User, channel: Channel) => {
-			log.verbose("member joined channel", user, channel);
-			// const params = await this.getSendParams(puppetId, reaction.message);
-			// const e = this.slackToEmoji(`:${reaction.reaction}:`);
-			// await this.puppet.removeReaction(params, reaction.message.ts, e);
-			log.verbose("member joined channel user.fullId", user.fullId);
+			log.verbose("member joined channel", user.id, channel.id);
 			let userRemote = <IRemoteUser>{userId: user.fullId, puppetId: -1};
 			const userMXID = await this.puppet.getMxidForUser(userRemote, false);
-			log.verbose("member joined getMxidForUser", userMXID);
-			log.verbose("member joined channel.team.id", channel.team.id);
 			const items = await this.store.getRoomByChannelIdAndTeamId(channel.id, channel.team.id);
-			log.verbose("member joined items", items);
 			if (items && items.length > 0) {
-				log.verbose("member joined items[0].roomId", items[0].roomId);
+				if (await this.puppet.puppetStore.isGhostInRoom(userMXID, items[0].roomId)) {
+					return;
+				}
 				await this.puppet.botIntent.underlyingClient.inviteUser(userMXID, items[0].roomId);
 				const intent = this.puppet.AS.getIntentForUserId(userMXID)
 				await intent.joinRoom(items[0].roomId);
@@ -345,20 +340,14 @@ export class App {
 		});
 
 		client.on("memberLeftChannel", async (user: User, channel: Channel) => {
-			log.verbose("member left channel", user, channel);
-			// const params = await this.getSendParams(puppetId, reaction.message);
-			// const e = this.slackToEmoji(`:${reaction.reaction}:`);
-			// await this.puppet.removeReaction(params, reaction.message.ts, e);
-			log.verbose("member left channel user.fullId", user.fullId);
+			log.verbose("member left channel", user.id, channel.id);
 			let userRemote = <IRemoteUser>{userId: user.fullId, puppetId: -1};
 			const userMXID = await this.puppet.getMxidForUser(userRemote, false);
-			log.verbose("member left getMxidForUser", userMXID);
-			log.verbose("member left channel.team.id", channel.team.id);
-			log.verbose("member left channel.id", channel.id);
 			const items = await this.store.getRoomByChannelIdAndTeamId(channel.id, channel.team.id);
-			log.verbose("member left items", items);
 			if (items && items.length > 0) {
-				log.verbose("member left items[0].roomId", items[0].roomId);
+				if (!await this.puppet.puppetStore.isGhostInRoom(userMXID, items[0].roomId)) {
+					return;
+				}
 				await this.puppet.botIntent.kickUser(userMXID, items[0].roomId, 'leave');
 			}
 		});
@@ -394,35 +383,38 @@ export class App {
 
 	public async handleSlackCreateFromSlack(puppetId: number, user: User, channel: Channel) {
 		log.verbose("handleSlackCreateFromSlack", {puppetId, user, channel});
-		const {mxid, alias} = await this.puppet.getMxidAndAliasNew({
-			puppetId: puppetId,
-			roomId: channel.fullId,
-		});
-		log.verbose("handleSlackCreateFromSlack1", {mxid, alias});
-		const invitee = await this.puppet.puppetStore.getMxid(puppetId);
-		if (mxid || alias) {
-			const id = mxid ? mxid : alias;
-			const parts = await this.puppet.roomSync.getPartsFromMxid(id);
-			if (!parts) {
-				return;
+		setTimeout(async () => {
+			const {mxid, alias} = await this.puppet.getMxidAndAliasNew({
+				puppetId: puppetId,
+				roomId: channel.fullId,
+			});
+			log.verbose("handleSlackCreateFromSlack1", {mxid, alias});
+			const invitee = await this.puppet.puppetStore.getMxid(puppetId);
+			if (mxid || alias) {
+				const id = mxid ? mxid : alias;
+				const parts = await this.puppet.roomSync.getPartsFromMxid(id);
+				if (!parts) {
+					return;
+				}
+				log.verbose("handleSlackCreateFromSlack2", {mxid, alias});
+				const res =  await this.puppet.roomSync.getMxid(parts);
+				log.verbose("handleSlackCreateFromSlack3", res);
+				if (res && res.created && res.mxid) {
+					const client = this.puppet.botIntent.underlyingClient;
+					await client.inviteUser(invitee, res.mxid);
+					await client.setUserPowerLevel(invitee, res.mxid, 50);
+
+					const teamIdAndChannelId = channel.fullId.split('-');
+					await this.store.storeUserChannels([{
+						channelId: teamIdAndChannelId[1],
+						teamId: teamIdAndChannelId[0],
+						userId: invitee,
+						roomId: res.mxid,
+						puppetId: puppetId,
+					}]);
+				}
 			}
-			log.verbose("handleSlackCreateFromSlack2", {mxid, alias});
-			const res =  await this.puppet.roomSync.getMxid(parts);
-			log.verbose("handleSlackCreateFromSlack3", res);
-			if (res && res.created && res.mxid) {
-				const client = this.puppet.botIntent.underlyingClient;
-				client.inviteUser(invitee, res.mxid);
-				
-				const teamIdAndChannelId = channel.fullId.split('-');
-				await this.store.storeUserChannels([{
-					channelId: teamIdAndChannelId[1],
-					teamId: teamIdAndChannelId[0],
-					userId: invitee,
-					roomId: res.mxid,
-					puppetId: puppetId,
-				}]);
-			}
-		}
+		}, 500);
 	}
 	
 	public async handleSlackMessage(puppetId: number, msg: Slack.Message) {
