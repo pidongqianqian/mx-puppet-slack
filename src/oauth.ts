@@ -48,6 +48,13 @@ export const oauthCallback = async (req: Request, res: Response) => {
 		res.send(getHtmlResponse(
 			`Your Slack token for ${escapeHtml(oauthData.team_name)} is`,
 			`<code>${escapeHtml(oauthData.access_token)}</code>${escapeHtml(globalVar.currentUserMxid)}${escapeHtml(globalVar.currentRoomMxid)}`));
+		
+		const results = await this.bridge.puppetStore.getForMxid(globalVar.currentUserMxid);
+		if (results && results.length > 0) {
+			await this.sendMessage(globalVar.currentRoomMxid, "ERROR: You have a link already!");
+			return;
+		}
+		
 		const retData = await getDataFromStrHook(oauthData.access_token + '');
 		let data: IPuppetData;
 		try {
