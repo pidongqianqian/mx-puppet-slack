@@ -17,14 +17,14 @@ import {
 import {
 	SlackMessageParser, ISlackMessageParserOpts, MatrixMessageParser, IMatrixMessageParserOpts,
 } from "matrix-slack-parser";
-import * as Slack from "soru-slack-client";
+import * as Slack from "@pidong/soru-slack-client";
 import * as Emoji from "node-emoji";
 import { SlackProvisioningAPI } from "./api";
 import { SlackStore } from "./store";
 import * as escapeHtml from "escape-html";
 import {Config, Puppet} from "./index";
 import {IRoomStoreEntry} from "@pidong/mx-puppet-bridge/lib/src/db/interfaces";
-import {Channel, User} from "soru-slack-client/lib";
+import {Channel, User} from "@pidong/soru-slack-client/lib";
 
 const log = new Log("SlackPuppet:slack");
 

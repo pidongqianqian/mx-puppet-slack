@@ -1,5 +1,5 @@
 import { Store } from "@pidong/mx-puppet-bridge";
-import { IStoreToken } from "soru-slack-client";
+import { IStoreToken } from "@pidong/soru-slack-client";
 
 const CURRENT_SCHEMA = 2;
 

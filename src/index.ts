@@ -11,7 +11,7 @@ import { SlackConfigWrap } from "./config";
 import * as fs from "fs";
 import * as yaml from "js-yaml";
 import { oauthCallback, getDataFromStrHook } from "./oauth";
-import { Logger } from "soru-slack-client";
+import { Logger } from "@pidong/soru-slack-client";
 
 const log = new Log("SlackPuppet:index");
 
