@@ -348,7 +348,7 @@ export class App {
 				if (!await this.puppet.puppetStore.isGhostInRoom(userMXID, items[0].roomId)) {
 					return;
 				}
-				await this.puppet.botIntent.kickUser(userMXID, items[0].roomId, 'leave');
+				await this.puppet.botProvisioner.kickUser(userMXID, items[0].roomId, 'leave');
 			}
 		});
 		p.client = client;

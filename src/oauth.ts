@@ -49,7 +49,8 @@ export const oauthCallback = async (req: Request, res: Response) => {
 			`Your Slack token for ${escapeHtml(oauthData.team_name)} is`,
 			`<code>${escapeHtml(oauthData.access_token)}</code>${escapeHtml(globalVar.currentUserMxid)}${escapeHtml(globalVar.currentRoomMxid)}`));
 		
-		const results = await this.bridge.puppetStore.getForMxid(globalVar.currentUserMxid);
+		const puppet = Puppet();
+		const results = await puppet.puppetStore.getForMxid(globalVar.currentUserMxid);
 		if (results && results.length > 0) {
 			await this.sendMessage(globalVar.currentRoomMxid, "ERROR: You have a link already!");
 			return;
@@ -59,7 +60,6 @@ export const oauthCallback = async (req: Request, res: Response) => {
 		let data: IPuppetData;
 		try {
 			data = (await retData.data) || {};
-			const puppet = Puppet();
 			const puppetId = await puppet.provisioner.new(globalVar.currentUserMxid, data, retData.userId);
 			this.sendMessage(globalVar.currentRoomMxid, `Created new link with ID ${puppetId}`);
 		} catch (e) {
