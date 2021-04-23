@@ -46,8 +46,11 @@ export const oauthCallback = async (req: Request, res: Response) => {
 	const oauthData = await convertOAuthToken(req.query.code);
 	if (oauthData.ok) {
 		res.send(getHtmlResponse(
-			`Your Slack token for ${escapeHtml(oauthData.team_name)} is`,
-			`<code>${escapeHtml(oauthData.access_token)}</code>${escapeHtml(globalVar.currentUserMxid)}${escapeHtml(globalVar.currentRoomMxid)}`));
+			`Authorized successfully!`,
+			`<code>You have successfully authorized, please go back to Nodefy to continue.</code>`));
+		// res.send(getHtmlResponse(
+		// 	`Your Slack token for ${escapeHtml(oauthData.team_name)} is`,
+		// 	`<code>${escapeHtml(oauthData.access_token)}</code>`));
 		
 		const puppet = Puppet();
 		const results = await puppet.puppetStore.getForMxid(globalVar.currentUserMxid);
