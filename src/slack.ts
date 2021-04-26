@@ -962,7 +962,11 @@ export class App {
 		const items = await this.store.getTeamRooms(teamId, userId);
 		log.verbose("handleMatrixAfterUnlink items:", items);
 		for (const item of items) {
-			this.puppet.botProvisioner.kickUser(userId, item.roomId, 'Unlink').catch(err => '');
+			if (userId) {
+				this.puppet.matrixClients[userId].leaveRoom(item.roomId);
+			} else {
+				this.puppet.botProvisioner.kickUser(userId, item.roomId, 'Unlink').catch(err => '');
+			}
 		}
 		await this.store.deleteTeamRooms(teamId, userId);
 	}
