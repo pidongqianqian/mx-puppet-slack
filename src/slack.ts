@@ -91,7 +91,9 @@ export class App {
 			};
 		}
 		if (chan.partial) {
-			await chan.load();
+			await chan.load().catch(err => {
+				log.verbose("getRoomParams err: ", err);
+			});
 		}
 		const nameVars: IStringFormatterVars = {
 			name: chan.name,
