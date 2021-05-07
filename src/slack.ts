@@ -336,7 +336,7 @@ export class App {
 				await this.puppet.botIntent.underlyingClient.inviteUser(userMXID, items[0].roomId);
 				const intent = this.puppet.AS.getIntentForUserId(userMXID)
 				await intent.joinRoom(items[0].roomId);
-			}else {
+			} else {
 				await this.handleSlackCreateFromSlack(puppetId, user, channel);
 			}
 		});
@@ -353,6 +353,23 @@ export class App {
 				await this.puppet.botProvisioner.kickUser(userMXID, items[0].roomId, 'leave');
 			}
 		});
+		
+		client.on("channelJoined", async (user: User, channel: Channel) => {
+			log.verbose("self joined channel", user.id, channel.id);
+		});
+		
+		client.on("channelLeft", async (user: User, channel: Channel) => {
+			log.verbose("self left channel", user.id, channel.id);
+			const items = await this.store.getRoomByChannelIdAndTeamId(channel.id, channel.team.id);
+			if (items && items.length > 0) {
+				const mxid = await this.puppet.puppetStore.getByUserId(user.fullId);
+				if (!mxid) {
+					return;
+				}
+				await this.puppet.botProvisioner.kickUser(mxid, items[0].roomId, 'leave');
+			}
+		});
+		
 		p.client = client;
 		try {
 			await client.connect();
@@ -426,6 +443,21 @@ export class App {
 		if(msg.text && msg.text.match(/<@.*> has left the channel/)) {
 			return;
 		}
+		
+		if(msg.text && msg.text.match(/<@.*> archived the channel/)) {
+			// if you don't want to leave the archived channel, you can comment this.
+			setTimeout(async () => {
+				const items = await this.store.getRoomByChannelIdAndTeamId(msg.channel.id, msg.author.team.id);
+				if (items && items.length > 0) {
+					const mxid = await this.puppet.puppetStore.getByUserId(`${msg.author.team.id}-${msg.author.id}`);
+					if (!mxid) {
+						return;
+					}
+					await this.puppet.botProvisioner.kickUser(mxid, items[0].roomId, 'archived');
+				}
+			}, 500);
+			return;
+		}
 
 		if (msg.author instanceof Slack.Bot) {
 			const appUserId = msg.client.users.get(msg.author.team.id);
@@ -464,6 +496,11 @@ export class App {
 				}
 			}
 
+			params.isInRoom = async (userId, roomMxid) => {
+				const result = await this.store.getRoomByRoomIdAndUserId(roomMxid, userId);
+				return result && result.length > 0;
+			}
+			
 			const dedupeKey = `${puppetId};${params.room.roomId}`;
 			if (!(msg.empty && !msg.attachments) &&
 				!await this.messageDeduplicator.dedupe(dedupeKey, params.user.userId, params.eventId, msg.text || "")) {
@@ -1003,22 +1040,16 @@ export class App {
 	}
 	
 	public async handleMatrixCreateConversation(userMxid: string, roomId: string, roomName: string, puppetId: number, isGroup: boolean) {
-		log.verbose("handleMatrixCreateConversation puppetId: ", puppetId);
-		log.verbose("handleMatrixCreateConversation roomId: ", roomId);
+		log.info(`Received create request from matrix, userMxid=${userMxid} roomId=${roomId}`);
 		const p = this.puppets[puppetId];
-		log.verbose("handleMatrixCreateConversation this.puppets: ", this.puppets);
-		log.verbose("handleMatrixCreateConversation p: ", p);
-		log.verbose("handleMatrixCreateConversation this.puppet.botIntent.userId: ", this.puppet.botIntent.userId);
 		if (!roomId || !p) {
 			return;
 		}
-		log.verbose("handleMatrixCreateConversation p.client.teams: ", p.client.teams);
 		for (const [, team] of p.client.teams) {
 			const converId = <unknown>(await team.create(roomName, isGroup));
 			// await team.load();
 			if (converId) {
 				const teamConverId = team.id + '-' + converId;
-				log.verbose("handleMatrixCreateConversation teamConverId:", teamConverId);
 				let roomData: IRemoteRoom = {
 					roomId: teamConverId,
 					puppetId: -1,
@@ -1039,13 +1070,9 @@ export class App {
 				
 				// invite room members to slack conversation
 				const members = await this.puppet.botIntent.underlyingClient.getRoomMembers(roomId);
-				log.verbose("handleMatrixCreateConversation members: ", members);
 				if(members && members.length > 2) {
-					log.verbose("handleMatrixCreateConversation members 123: ");
 					let membersMxid = '';
 					members.forEach(member => {
-						log.verbose("handleMatrixCreateConversation member.raw: ", member.raw);
-						log.verbose("handleMatrixCreateConversation member.raw.user_id: ", member.raw.user_id);
 						if (member.raw && member.raw.user_id) {
 							if (member.raw.user_id !== userMxid && member.raw.user_id !== this.puppet.botIntent.userId) {
 								membersMxid += member.raw.user_id + ',';
@@ -1148,6 +1175,45 @@ export class App {
 				} else {
 					log.verbose("handleMatrixKickUser failed");
 				}
+			}
+		}
+	}
+	
+	public async handleMatrixLeaveRoom(teamId: string, channelId, userId: string) {
+		const currentPuppetId = await this.getPuppetId(teamId.toUpperCase(), userId);
+		const p = this.puppets[currentPuppetId];
+		if (!p) {
+			return;
+		}
+		for (const [, team] of p.client.teams) {
+			if (team.id === teamId) {
+				let result : any = null;
+				 result = <any>(await team.leave(channelId).catch(async err => {
+					if (err.data && (err.data.ok === false || err.data.ok === 'false')) {
+						// it is private channel(group) and current user is last member in the group
+						if (err.data.error === 'last_member') {
+							result = <any>(await team.archive(channelId).catch(err1 => {
+								log.warn("handleMatrixLeaveRoom team.archive err: ", err1);
+							}));
+							log.verbose("archive channel/group result: ", result);
+							if (result.ok === true) {
+								log.verbose("archive channel/group success", result);
+								await this.store.deleteChannelInUserTeamChannel(teamId, channelId, userId);
+							} else {
+								log.verbose("archive channel/group failed");
+							}
+						}
+					}
+				}));
+				log.verbose("Leave channel/group result", result);
+				 if (result) {
+					 if (result.ok === 'true' || result.ok === true) {
+						 log.verbose("Leave channel/group success", result);
+						 await this.store.deleteChannelInUserTeamChannel(teamId, channelId, userId);
+					 } else {
+						 log.verbose("Leave channel/group failed");
+					 }
+				 }
 			}
 		}
 	}

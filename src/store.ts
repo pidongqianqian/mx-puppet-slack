@@ -130,4 +130,9 @@ export class SlackStore {
 		await this.store.db.Run("DELETE FROM user_team_channel WHERE team_id = $t AND user_id = $u",
 			{ t: teamId, u: userId });
 	}
+
+	public async deleteChannelInUserTeamChannel(teamId: string, channelId: string, userId: string, ) {
+		await this.store.db.Run("DELETE FROM user_team_channel WHERE channel_id = $c AND team_id = $t AND user_id = $u",
+			{ c: channelId, t: teamId, u: userId });
+	}
 }
