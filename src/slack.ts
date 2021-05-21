@@ -1218,6 +1218,28 @@ export class App {
 		}
 	}
 	
+	public async handleRoomMetaUpdate(teamId: string, channelId, userId: string, content: any) {
+		const currentPuppetId = await this.getPuppetId(teamId.toUpperCase(), userId);
+		const p = this.puppets[currentPuppetId];
+		if (!p) {
+			return;
+		}
+		for (const [, team] of p.client.teams) {
+			if (team.id === teamId) {
+				let result : any = null;
+				result = <any>(await team.rename(channelId, content.name).catch(async err => {
+					if (err.data && (err.data.ok === false || err.data.ok === 'false')) {
+						log.verbose("room meta update failed");
+					}
+				}));
+				
+				if (result.data && (result.data.ok === true || result.data.ok === 'true')) {
+					log.verbose("room meta update success");
+				}
+			}
+		}
+	}
+	
 	public async createUser(remoteUser: IRemoteUser): Promise<IRemoteUser | null> {
 		const p = this.puppets[remoteUser.puppetId];
 		if (!p) {
