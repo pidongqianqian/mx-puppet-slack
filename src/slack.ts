@@ -993,20 +993,26 @@ export class App {
 			}]);
 		}
 	}
-	
+
 	public async handleMatrixAfterUnlink(userId: string, teamId: string) {
 		if (!userId || !teamId) {
 			return;
 		}
 		const items = await this.store.getTeamRooms(teamId, userId);
 		log.verbose("handleMatrixAfterUnlink items:", items);
+		let roomIds = ["T0118KX75PY-C0240L2A97D", "T0118KX75PY-C023XAD12H3", "T0118KX75PY-C023TLBD3P0"];
 		for (const item of items) {
 			if (userId && this.puppet.matrixClients[userId]) {
 				this.puppet.matrixClients[userId].leaveRoom(item.roomId);
 			} else {
 				this.puppet.botProvisioner.kickUser(userId, item.roomId, 'Unlink').catch(err => '');
 			}
+			if (item.channelId[1] === 'D') {
+				// @ts-ignore
+				roomIds.push(`${item.teamId}-${item.channelId}`);
+			}
 		}
+		await this.store.deleteDmFromRoomStore(roomIds);
 		await this.store.deleteTeamRooms(teamId, userId);
 	}
 
