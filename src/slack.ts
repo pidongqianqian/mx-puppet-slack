@@ -353,11 +353,11 @@ export class App {
 				await this.puppet.botProvisioner.kickUser(userMXID, items[0].roomId, 'leave');
 			}
 		});
-		
+
 		client.on("channelJoined", async (user: User, channel: Channel) => {
 			log.verbose("self joined channel", user.id, channel.id);
 		});
-		
+
 		client.on("channelLeft", async (user: User, channel: Channel) => {
 			log.verbose("self left channel", user.id, channel.id);
 			const items = await this.store.getRoomByChannelIdAndTeamId(channel.id, channel.team.id);
@@ -369,7 +369,7 @@ export class App {
 				await this.puppet.botProvisioner.kickUser(mxid, items[0].roomId, 'leave');
 			}
 		});
-		
+
 		p.client = client;
 		try {
 			await client.connect();
@@ -435,7 +435,7 @@ export class App {
 			}
 		}, 500);
 	}
-	
+
 	public async handleSlackMessage(puppetId: number, msg: Slack.Message) {
 		if (msg.empty && !msg.attachments && !msg.files) {
 			return; // nothing to do
@@ -443,7 +443,7 @@ export class App {
 		if(msg.text && msg.text.match(/<@.*> has left the channel/)) {
 			return;
 		}
-		
+
 		if(msg.text && msg.text.match(/<@.*> archived the channel/)) {
 			// if you don't want to leave the archived channel, you can comment this.
 			setTimeout(async () => {
@@ -472,15 +472,15 @@ export class App {
 		const client = this.puppets[puppetId].client;
 		const parserOpts = this.getSlackMessageParserOpts(puppetId, msg.channel.team);
 		log.verbose("Received message.");
-		
-		// The reason for the delay of 500ms(setTimout) is that the process of sending the 
-		// matrix to the slack server (chan.sendMessage), and listening to the slack message 
+
+		// The reason for the delay of 500ms(setTimout) is that the process of sending the
+		// matrix to the slack server (chan.sendMessage), and listening to the slack message
 		// is asynchronous(handleSlackMessage).
-		// 
-		// The monitoring process is often faster than getting the response from chan.sendMessage, 
-		// so the bridge cannot know that the message is actually sent from the matrix, and there 
+		//
+		// The monitoring process is often faster than getting the response from chan.sendMessage,
+		// so the bridge cannot know that the message is actually sent from the matrix, and there
 		// is no need to synchronize the same message to the matrix again.
-		
+
 		// 500ms delay can effectively solve this problem.
 		setTimeout(async () => {
 			// check if message has already synced
@@ -500,7 +500,7 @@ export class App {
 				const result = await this.store.getRoomByRoomIdAndUserId(roomMxid, userId);
 				return result && result.length > 0;
 			}
-			
+
 			const dedupeKey = `${puppetId};${params.room.roomId}`;
 			if (!(msg.empty && !msg.attachments) &&
 				!await this.messageDeduplicator.dedupe(dedupeKey, params.user.userId, params.eventId, msg.text || "")) {
@@ -596,7 +596,7 @@ export class App {
 		const params = await this.getSendParams(puppetId, msg);
 		await this.puppet.sendRedact(params, msg.ts);
 	}
-	
+
 	private async insertEventStore(room: IRemoteRoom, matrixId: string, remoteId?: string) {
 		if(this.currentMessageBuff.length > 9) {
 			this.currentMessageBuff.shift();
@@ -1012,7 +1012,7 @@ export class App {
 				roomIds.push(`${item.teamId}-${item.channelId}`);
 			}
 		}
-		await this.store.deleteDmFromRoomStore(roomIds);
+		// await this.store.deleteDmFromRoomStore(roomIds);
 		await this.store.deleteTeamRooms(teamId, userId);
 	}
 
@@ -1023,14 +1023,14 @@ export class App {
 		const teamIdAndChannelId = teamChannelId.split('-');
 		const currentPuppetId = await this.getPuppetId(teamIdAndChannelId[0], userMxid);
 		await this.store.storeUserChannels([{
-			channelId: teamIdAndChannelId[1], 
-			teamId: teamIdAndChannelId[0], 
-			userId: userMxid, 
+			channelId: teamIdAndChannelId[1],
+			teamId: teamIdAndChannelId[0],
+			userId: userMxid,
 			roomId: roomId,
 			puppetId: currentPuppetId,
 		}]);
 	}
-	
+
 	private async getPuppetId(teamId:string, userMxid: string): Promise<number> {
 		const puppets = await this.puppet.provisioner.getForMxid(userMxid);
 		let currentPuppetId = 0;
@@ -1044,7 +1044,7 @@ export class App {
 		})
 		return currentPuppetId;
 	}
-	
+
 	public async handleMatrixCreateConversation(userMxid: string, roomId: string, roomName: string, puppetId: number, isGroup: boolean) {
 		log.info(`Received create request from matrix, userMxid=${userMxid} roomId=${roomId}`);
 		const p = this.puppets[puppetId];
@@ -1063,9 +1063,9 @@ export class App {
 				};
 				await this.puppet.roomSync.insert(roomId, roomData);
 				await this.store.storeUserChannels([{
-					channelId: <string>converId, 
-					teamId: team.id, 
-					userId: userMxid, 
+					channelId: <string>converId,
+					teamId: team.id,
+					userId: userMxid,
 					roomId: roomId,
 					puppetId: puppetId,
 				}]);
@@ -1073,7 +1073,7 @@ export class App {
 				const ADMIN_POWER_LEVEL = 100;
 				await this.puppet.matrixClients[userMxid].setUserPowerLevel(this.puppet.botIntent.userId, roomId, ADMIN_POWER_LEVEL);
 				await this.puppet.matrixClients[userMxid].setUserPowerLevel(userMxid, roomId, 50);
-				
+
 				// invite room members to slack conversation
 				const members = await this.puppet.botIntent.underlyingClient.getRoomMembers(roomId);
 				if(members && members.length > 2) {
@@ -1090,7 +1090,7 @@ export class App {
 			}
 		}
 	}
-	
+
 	private parseMemberIdAndTeamId(membersMxId: string) {
 		let memberId = '';
 		let teamId = '';
@@ -1118,14 +1118,14 @@ export class App {
 		}
 		return {memberId, teamId};
 	}
-	
+
 	public async handleMatrixInviteUser(roomId: string, membersMxId: string, userId: string, puppetId?: number) {
 		log.verbose("handleMatrixInviteUser", {roomId, membersMxId, userId, puppetId});
 		const {memberId, teamId} = this.parseMemberIdAndTeamId(membersMxId);
 		if(!memberId || !teamId) {
 			return;
 		}
-		
+
 		log.verbose("handleMatrixInviteUser memberId teamId", {memberId, teamId});
 		let currentPuppetId = puppetId;
 		if (!currentPuppetId) {
@@ -1136,7 +1136,7 @@ export class App {
 		if (!p) {
 			return;
 		}
-		
+
 		const items = await this.store.getRoomByRoomIdAndUserId(roomId, userId);
 		log.verbose("handleMatrixInviteUser items ", items);
 		if (items.length > 0 && items[0].channelId) {
@@ -1184,7 +1184,7 @@ export class App {
 			}
 		}
 	}
-	
+
 	public async handleMatrixLeaveRoom(teamId: string, channelId, userId: string) {
 		const currentPuppetId = await this.getPuppetId(teamId.toUpperCase(), userId);
 		const p = this.puppets[currentPuppetId];
@@ -1223,7 +1223,7 @@ export class App {
 			}
 		}
 	}
-	
+
 	public async handleRoomMetaUpdate(teamId: string, channelId, userId: string, content: any) {
 		const currentPuppetId = await this.getPuppetId(teamId.toUpperCase(), userId);
 		const p = this.puppets[currentPuppetId];
@@ -1238,14 +1238,14 @@ export class App {
 						log.verbose("room meta update failed");
 					}
 				}));
-				
+
 				if (result.data && (result.data.ok === true || result.data.ok === 'true')) {
 					log.verbose("room meta update success");
 				}
 			}
 		}
 	}
-	
+
 	public async createUser(remoteUser: IRemoteUser): Promise<IRemoteUser | null> {
 		const p = this.puppets[remoteUser.puppetId];
 		if (!p) {
@@ -1324,10 +1324,11 @@ export class App {
 				name: team.name,
 			});
 			for (const [, chan] of team.channels) {
-				if (chan.type !== "im") {
+				if (chan.type === 'im' || chan.isMember) {
 					reply.push({
 						id: chan.fullId,
 						name: chan.name || chan.fullId,
+						type: chan.type,
 					});
 				}
 			}
