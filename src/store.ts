@@ -92,7 +92,7 @@ export class SlackStore {
 		return ret;
 	}
 
-	public async getRoomByRoomIdAndUserId(roomId: string, userId: string) {
+	public async getRoomByRoomIdAndUserId(roomId: string, userId: string): Promise<userTeamChannel[]> {
 		const rows = await this.store.db.All("SELECT * FROM user_team_channel WHERE room_id = $t AND user_id = $u",
 			{ t: roomId, u: userId });
 		const ret: userTeamChannel[] = [];

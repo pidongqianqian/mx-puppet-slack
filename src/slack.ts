@@ -984,13 +984,31 @@ export class App {
 		const currentPuppetId = await this.getPuppetId(teamIdAndChannelId[0], userMxid);
 		log.info(`handleMatrixAfterLinkRoom userId=${userMxid} roomId=${room.roomId}`);
 		if (currentPuppetId > 0) {
-			await this.store.storeUserChannels([{
-				channelId: teamIdAndChannelId[1],
-				teamId: teamIdAndChannelId[0],
-				userId: userMxid,
-				roomId: room.mxid,
-				puppetId: currentPuppetId,
-			}]);
+			const items = await this.store.getRoomByRoomIdAndUserId(room.mxid, userMxid);
+			if (items.length < 1) {
+				await this.store.storeUserChannels([{
+					channelId: teamIdAndChannelId[1],
+					teamId: teamIdAndChannelId[0],
+					userId: userMxid,
+					roomId: room.mxid,
+					puppetId: currentPuppetId,
+				}]);
+				// this.puppet.botIntent.underlyingClient.inviteUser(userMxid, room.mxid);
+				const p = this.puppets[currentPuppetId];
+				let chan = p.client.getChannel(room.roomId);
+				if (!chan) {
+					for (const [, team] of p.client.teams) {
+						await team.load();
+						if (!chan) {
+							chan = p.client.getChannel(room.roomId);
+						}
+					}
+					if (!chan) {
+						log.verbose('test step b14');
+						return null;
+					}
+				}
+			}
 		}
 	}
 
@@ -1079,9 +1097,12 @@ export class App {
 				if(members && members.length > 2) {
 					let membersMxid = '';
 					members.forEach(member => {
-						if (member.raw && member.raw.user_id) {
-							if (member.raw.user_id !== userMxid && member.raw.user_id !== this.puppet.botIntent.userId) {
-								membersMxid += member.raw.user_id + ',';
+						if (member.raw && member.raw.state_key) {
+							log.verbose('handleMatrixCreateConversation0: ', member.raw.state_key)
+							if (member.raw.state_key !== userMxid && member.raw.state_key !== this.puppet.botIntent.userId) {
+								membersMxid += member.raw.state_key + ',';
+								log.verbose('handleMatrixCreateConversation1: ', roomId)
+								this.invitePuppetWithMatrixIdToRoom(roomId, member.raw.state_key)
 							}
 						}
 					});
@@ -1117,6 +1138,18 @@ export class App {
 			teamId = teamIdWithLine.replace(/_/g, "");
 		}
 		return {memberId, teamId};
+	}
+
+	public async invitePuppetWithMatrixIdToRoom(roomId: string, membersMxId: string) {
+		const {memberId, teamId} = this.parseMemberIdAndTeamId(membersMxId);
+		if(!memberId || !teamId) {
+			return;
+		}
+		log.verbose('invitePuppetWithMatrixIdToRoom: ', teamId + '-' + memberId.toUpperCase())
+		const mxid = await this.puppet.puppetStore.getByUserId(teamId.toUpperCase() + '-' + memberId.toUpperCase());
+		if (mxid) {
+			this.puppet.botIntent.underlyingClient.inviteUser(mxid, roomId);
+		}
 	}
 
 	public async handleMatrixInviteUser(roomId: string, membersMxId: string, userId: string, puppetId?: number) {
