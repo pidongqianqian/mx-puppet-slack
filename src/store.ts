@@ -1,5 +1,7 @@
-import { Store } from "@pidong/mx-puppet-bridge";
+import { Store, Log } from "@pidong/mx-puppet-bridge";
 import { IStoreToken } from "@pidong/soru-slack-client";
+
+const log = new Log("SlackPuppet:store");
 
 const CURRENT_SCHEMA = 2;
 
@@ -55,7 +57,7 @@ export class SlackStore {
 			userId: token.userId,
 		});
 	}
-	
+
 	public async storeUserChannels(userTeamChannels: userTeamChannels) {
 		if (this.store.db.type === "postgres") {
 			await this.store.db.BulkInsert(`INSERT INTO user_team_channel (
@@ -90,7 +92,7 @@ export class SlackStore {
 		return ret;
 	}
 
-	public async getRoomByRoomIdAndUserId(roomId: string, userId: string) {
+	public async getRoomByRoomIdAndUserId(roomId: string, userId: string): Promise<userTeamChannel[]> {
 		const rows = await this.store.db.All("SELECT * FROM user_team_channel WHERE room_id = $t AND user_id = $u",
 			{ t: roomId, u: userId });
 		const ret: userTeamChannel[] = [];
@@ -130,4 +132,24 @@ export class SlackStore {
 		await this.store.db.Run("DELETE FROM user_team_channel WHERE team_id = $t AND user_id = $u",
 			{ t: teamId, u: userId });
 	}
+
+	public async deleteChannelInUserTeamChannel(teamId: string, channelId: string, userId: string) {
+		await this.store.db.Run("DELETE FROM user_team_channel WHERE channel_id = $c AND team_id = $t AND user_id = $u",
+			{ c: channelId, t: teamId, u: userId });
+	}
+
+	public async deleteDmFromRoomStore(roomIds: Array<string> = []) {
+		let sqlStr = "DELETE FROM room_store WHERE room_id IN (";
+		let parms = {};
+		roomIds.forEach((roomId,index)=> {
+			if (index === (roomIds.length - 1)) {
+				sqlStr += `$s${index})`;
+			} else {
+				sqlStr += `$s${index}, `;
+			}
+			parms[`s${index}`] = roomId;
+		})
+		log.verbose("deleteDmFromRoomStore:", sqlStr, parms);
+		await this.store.db.Run(sqlStr, parms);
+	}s
 }

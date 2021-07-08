@@ -145,6 +145,8 @@ async function run() {
 	puppet.on("createConversation", slack.handleMatrixCreateConversation.bind(slack));
 	puppet.on("inviteUser", slack.handleMatrixInviteUser.bind(slack));
 	puppet.on("kickUser", slack.handleMatrixKickUser.bind(slack));
+	puppet.on("leaveRoom", slack.handleMatrixLeaveRoom.bind(slack));
+	puppet.on("roomMetaUpdate", slack.handleRoomMetaUpdate.bind(slack));
 	puppet.setCreateUserHook(slack.createUser.bind(slack));
 	puppet.setCreateRoomHook(slack.createRoom.bind(slack));
 	puppet.setCreateGroupHook(slack.createGroup.bind(slack));
