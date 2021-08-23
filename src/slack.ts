@@ -570,7 +570,7 @@ export class App {
 		const parserOpts = this.getSlackMessageParserOpts(puppetId, msg1.channel.team);
 		log.verbose("Received message edit");
 		const dedupeKey = `${puppetId};${params.room.roomId}`;
-		if (await this.messageDeduplicator.dedupe(dedupeKey, params.user.userId, params.eventId, msg2.text || "")) {
+		if (await this.messageDeduplicator.dedupe(dedupeKey, params.user.userId, params.eventId, msg2.text || "") && msg2.text === msg1.text) {
 			return;
 		}
 		const res = await this.slackMessageParser.FormatMessage(parserOpts, {
