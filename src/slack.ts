@@ -444,6 +444,23 @@ export class App {
 			return;
 		}
 
+		const topicStr = 'set the channel topic:';
+		if(msg.text && msg.text.indexOf(topicStr) === 0) {
+			const topicArr = msg.text.split(topicStr);
+			setTimeout(async () => {
+				const items = await this.store.getRoomByChannelIdAndTeamId(msg.channel.id, msg.author.team.id);
+				if (items && items.length > 0) {
+					this.puppet.botIntent.underlyingClient.sendStateEvent(
+						items[0].roomId,
+						"m.room.topic",
+						"",
+						{ topic: topicArr[1] },
+					);
+				}
+			}, 500);
+			return;
+		}
+
 		if(msg.text && msg.text.match(/<@.*> archived the channel/)) {
 			// if you don't want to leave the archived channel, you can comment this.
 			setTimeout(async () => {
