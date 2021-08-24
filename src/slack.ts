@@ -1274,22 +1274,34 @@ export class App {
 		}
 	}
 
-	public async handleRoomMetaUpdate(teamId: string, channelId, userId: string, content: any) {
+	public async handleRoomMetaUpdate(teamId: string, channelId, userId: string, event: any) {
+		console.log("handleRoomMetaUpdate event: ", event)
 		const currentPuppetId = await this.getPuppetId(teamId.toUpperCase(), userId);
 		const p = this.puppets[currentPuppetId];
 		if (!p) {
 			return;
 		}
 		for (const [, team] of p.client.teams) {
-			if (team.id === teamId) {
+			if (event && team.id === teamId) {
 				let result : any = null;
-				result = <any>(await team.rename(channelId, content.name).catch(async err => {
-					if (err.data && (err.data.ok === false || err.data.ok === 'false')) {
-						log.verbose("room meta update failed");
+				if (event.type === 'm.room.name') {
+					result = <any>(await team.rename(channelId, event.content.name).catch(async err => {
+						if (err.data && (err.data.ok === false || err.data.ok === 'false')) {
+							log.verbose("room meta name update failed");
+						}
+					}));
+				} else if (event.type === 'm.room.topic') {
+					if (event.preContent.topic === event.content.topic) {
+						return
 					}
-				}));
+					result = <any>(await team.setTopic(channelId, event.content.topic).catch(async err => {
+						if (err.data && (err.data.ok === false || err.data.ok === 'false')) {
+							log.verbose("room meta topic update failed");
+						}
+					}));
+				}
 
-				if (result.data && (result.data.ok === true || result.data.ok === 'true')) {
+				if (result && result.data && (result.data.ok === true || result.data.ok === 'true')) {
 					log.verbose("room meta update success");
 				}
 			}
