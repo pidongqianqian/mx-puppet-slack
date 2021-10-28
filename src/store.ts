@@ -6,9 +6,9 @@ const log = new Log("SlackPuppet:store");
 const CURRENT_SCHEMA = 2;
 
 type userTeamChannel = {
-	userId: string,
-	teamId: string,
 	channelId: string,
+	teamId: string,
+	userId: string,
 	roomId: string,
 	puppetId: number
 }
@@ -63,7 +63,7 @@ export class SlackStore {
 			await this.store.db.BulkInsert(`INSERT INTO user_team_channel (
 				channel_id, team_id, user_id, room_id, puppet_id
 			) VALUES (
-				$channelId, $teamId, $userId, $roomId. $puppetId
+				$channelId, $teamId, $userId, $roomId, $puppetId
 			) ON CONFLICT DO NOTHING;`, userTeamChannels);
 		} else {
 			await this.store.db.BulkInsert(`INSERT OR IGNORE INTO user_team_channel (
