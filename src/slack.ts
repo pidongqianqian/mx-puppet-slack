@@ -1037,11 +1037,13 @@ export class App {
 		log.verbose("handleMatrixAfterUnlink items:", items);
 		let roomIds = [];
 		for (const item of items) {
-			if (userId && this.puppet.matrixClients[userId]) {
-				this.puppet.matrixClients[userId].leaveRoom(item.roomId);
-			} else {
-				this.puppet.botProvisioner.kickUser(userId, item.roomId, 'Unlink').catch(err => '');
-			}
+			// Put the leaving room in the 'unlinkTeam' of botProvisioner, 
+			// the user_team_channel table and related logic code may can be delete ​either.
+			// if (userId && this.puppet.matrixClients[userId]) {
+			// 	this.puppet.matrixClients[userId].leaveRoom(item.roomId);
+			// } else {
+			// 	this.puppet.botProvisioner.kickUser(userId, item.roomId, 'Unlink').catch(err => '');
+			// }
 			if (item.channelId[0] === 'D') {
 				// @ts-ignore
 				roomIds.push(`${item.teamId}-${item.channelId}`);
