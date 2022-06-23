@@ -1037,7 +1037,7 @@ export class App {
 		log.verbose("handleMatrixAfterUnlink items:", items);
 		let roomIds = [];
 		for (const item of items) {
-			// Put the leaving room in the 'unlinkTeam' of botProvisioner, 
+			// Put the leaving room in the 'unlinkTeam' of botProvisioner,
 			// the user_team_channel table and related logic code may can be delete ​either.
 			// if (userId && this.puppet.matrixClients[userId]) {
 			// 	this.puppet.matrixClients[userId].leaveRoom(item.roomId);
@@ -1301,6 +1301,44 @@ export class App {
 							log.verbose("room meta topic update failed");
 						}
 					}));
+				} else if (event.type === 'm.room.pinned_events') {
+					let currentPinnedMessageIds = event.content.pinned;
+					let prevContentPinnedMessageIds = event.preContent.pinned;
+					let newPinnedMessageIds = currentPinnedMessageIds.filter(id => {
+						return prevContentPinnedMessageIds.indexOf(id) === -1;
+					});
+					let unPinnedMessageIds = prevContentPinnedMessageIds.filter(id => {
+						return currentPinnedMessageIds.indexOf(id) === -1;
+					});
+					if (newPinnedMessageIds.length > 0) {
+						for (const id of newPinnedMessageIds) {
+							const messages = await this.puppet.eventSync.getRemoteIdByMatrixId(id);
+							if (messages.length < 1) {
+								log.verbose("can not find message in the db: ", id);
+								continue;
+							}
+							result = <any>(await team.pinItemToChannel(channelId, messages[0], 'add').catch(async err => {
+								if (err.data && (err.data.ok === false || err.data.ok === 'false')) {
+									log.verbose("room message pin failed", err);
+								}
+							}));
+						}
+					}
+
+					if (unPinnedMessageIds.length > 0) {
+						for (const id of unPinnedMessageIds) {
+							const messages = await this.puppet.eventSync.getRemoteIdByMatrixId(id);
+							if (messages.length < 1) {
+								log.verbose("can not find message in the db: ", id);
+								continue;
+							}
+							result = <any>(await team.pinItemToChannel(channelId, messages[0], 'remove').catch(async err => {
+								if (err.data && (err.data.ok === false || err.data.ok === 'false')) {
+									log.verbose("room message remove pin failed", err);
+								}
+							}));
+						}
+					}
 				}
 
 				if (result && result.data && (result.data.ok === true || result.data.ok === 'true')) {
